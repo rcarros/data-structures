@@ -1,0 +1,120 @@
+name: Data Structures CI/CD Pipeline
+
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  checks: write
+  deployments: write
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install & Build GTest
+        run: sudo make install_gtest
+
+      - name: Compile Everything
+        run: make all
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiled-binaries
+          path: |
+            build/
+            bin/
+            main
+          retention-days: 1
+
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: compiled-binaries
+
+      - name: Run Tests
+        run: |
+          chmod +x ./bin/*
+          chmod +x ./bin/*/*
+          make test
+
+      - name: GitHub Test Sidebar
+        uses: dorny/test-reporter@v3
+        with:
+          name: Google Test Results
+          path: report.xml
+          reporter: java-junit
+          fail-on-error: 'true'
+
+
+  cleanup-docs:
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Delete old deployments
+        uses: strumwolf/delete-deployment-environment@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          environment: github-pages
+          onlyRemoveDeployments: true
+
+
+  deploy-docs:
+    needs: cleanup-docs
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Doxygen
+        run: sudo make install_doxygen
+
+      - name: Fetch Doxygen Awesome CSS
+        run: git clone --depth 1 https://github.com/jothepro/doxygen-awesome-css.git docs/doxygen-awesome-css/
+
+      - name: Generate documentation
+        run: |
+          doxygen Doxyfile
+          mkdir -p public
+          cp -r docs/html/* public/
+
+      - name: Setup GitHub Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './public'
+          retention-days: 1
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

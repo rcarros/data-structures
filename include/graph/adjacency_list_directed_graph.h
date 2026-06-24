@@ -1,0 +1,8 @@
+#ifndef DATASTRUCTURES__GRAPH__ADJACENCY_LIST_DIRECTED_GRAPH_H_
+#define DATASTRUCTURES__GRAPH__ADJACENCY_LIST_DIRECTED_GRAPH_H_
+
+#include "graph/directed_graph.h"
+
+//.
+
+#endif
